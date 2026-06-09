@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Control de Personal y Asistencia QR</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .calendar-day { min-height: 55px; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen">
+
+    <nav class="bg-indigo-700 text-white p-4 shadow-md sticky top-0 z-50">
+        <div class="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <i class="fa-solid fa-user-shield"></i> Portal de Control RRHH & Asistencia QR
+            </h1>
+            <button onclick="exportarBackupJS()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition shadow flex items-center gap-2 w-full sm:w-auto justify-center cursor-pointer">
+                <i class="fa-solid fa-download"></i> Descargar Respaldo (.js)
+            </button>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-4 grid grid-cols-1 xl:grid-cols-3 gap-6">
+        
+        <div class="xl:col-span-1 space-y-6">
+            
+            <div class="bg-white p-5 rounded-2xl shadow border-t-4 border-indigo-600">
+                <h2 class="text-base font-bold text-slate-700 mb-1 flex items-center gap-2">
+                    <i class="fa-solid fa-qrcode text-indigo-600"></i> Lector QR de Asistencias
+                </h2>
+                <p class="text-xs text-slate-400 mb-3">Escanea el DNI de un trabajador para validar su ingreso.</p>
+                
+                <div id="contenedor-visor" class="w-full aspect-square bg-slate-950 rounded-xl overflow-hidden border border-dashed border-slate-300 relative flex items-center justify-center">
+                    <div id="reader" class="w-full h-full"></div>
+                    <div id="placeholder-camara" class="absolute text-center p-4 text-slate-400">
+                        <i class="fa-solid fa-video-slash text-3xl mb-1 block"></i>
+                        <span class="text-xs">Cámara en reposo</span>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button onclick="alternarCamaraMovil()" id="btn-camara" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 px-4 rounded-xl font-medium text-sm transition flex justify-center items-center gap-2 shadow cursor-pointer">
+                        <i class="fa-solid fa-camera"></i> Activar Cámara Trasera
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl shadow border-t-4 border-rose-500">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-base font-bold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-calendar-alt text-rose-500"></i> Panel de Fechas
+                    </h2>
+                    <div class="flex gap-2">
+                        <button onclick="navegarMes(-1)" class="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs cursor-pointer"><i class="fa-solid fa-chevron-left"></i></button>
+                        <span id="mesAnoTexto" class="text-xs font-bold uppercase tracking-wider text-slate-600 self-center"></span>
+                        <button onclick="navegarMes(1)" class="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs cursor-pointer"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400 mb-2">
+                    <div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div>
+                </div>
+                <div id="grillaCalendario" class="grid grid-cols-7 gap-1 text-xs"></div>
+
+                <div class="mt-4 pt-3 border-t border-slate-100">
+                    <button onclick="modalGestionAsistenciaAdministrativa()" class="w-full bg-rose-500 hover:bg-rose-600 text-white py-2 px-4 rounded-xl font-medium text-sm transition flex justify-center items-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-sliders"></i> Marcación / Gestión Manual
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="xl:col-span-2 space-y-6">
+            <div class="bg-white p-5 rounded-2xl shadow border-t-4 border-emerald-500">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                    <h2 class="text-base font-bold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-users text-emerald-500"></i> Base de Datos de Personal
+                    </h2>
+                    <button onclick="abrirModalFormularioTrabajador()" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow flex items-center justify-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-user-plus"></i> Registrar Trabajador
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto rounded-xl border border-slate-200">
+                    <table class="min-w-full divide-y divide-slate-200 text-left text-xs sm:text-sm">
+                        <thead class="bg-slate-50 text-slate-600 font-semibold uppercase">
+                            <tr>
+                                <th class="p-3">DNI</th>
+                                <th class="p-3">Trabajador</th>
+                                <th class="p-3 text-center">Género</th>
+                                <th class="p-3 text-center">Edad</th>
+                                <th class="p-3">Teléfono</th>
+                                <th class="p-3 text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cuerpoTablaTrabajadores" class="divide-y divide-slate-200 bg-white text-slate-600">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 15 REGISTROS BASE DE TRABAJADORES
+        let trabajadores = [
+            { dni: "45871239", nombres: "Juan Carlos", apellidos: "Mendoza Quispe", genero: "Masculino", edad: 28, telefono: "987654321" },
+            { dni: "71245982", nombres: "María Elena", apellidos: "Flores Huamán", genero: "Femenino", edad: 34, telefono: "951234567" },
+            { dni: "25896417", nombres: "Carlos Alberto", apellidos: "Gutiérrez Tello", genero: "Masculino", edad: 42, telefono: "963852741" },
+            { dni: "48512369", nombres: "Ana Lucía", apellidos: "Palomino Rojas", genero: "Femenino", edad: 25, telefono: "942159367" },
+            { dni: "09845126", nombres: "Luis Fernando", apellidos: "Cárdenas Sulca", genero: "Masculino", edad: 31, telefono: "974123852" },
+            { dni: "74125896", nombres: "Diana Carolina", apellidos: "Chávez Medina", genero: "Femenino", edad: 29, telefono: "912345678" },
+            { dni: "43217895", nombres: "Jorge Luis", apellidos: "Ramos Ccoyllo", genero: "Masculino", edad: 45, telefono: "956789123" },
+            { dni: "70258143", nombres: "Sofía Beatriz", apellidos: "Torres Gutiérrez", genero: "Femenino", edad: 23, telefono: "935412789" },
+            { dni: "10245896", nombres: "Ricardo Alonso", apellidos: "Morales Vila", genero: "Masculino", edad: 38, telefono: "981245763" },
+            { dni: "46985214", nombres: "Gabriela Fernanda", apellidos: "Ortiz Bellido", genero: "Femenino", edad: 27, telefono: "924578136" },
+            { dni: "72541369", nombres: "Miguel Ángel", apellidos: "Castro Yupanqui", genero: "Masculino", edad: 33, telefono: "968531742" },
+            { dni: "25413698", nombres: "Valeria Alejandra", apellidos: "Nuñez Paucar", genero: "Femenino", edad: 30, telefono: "947152638" },
+            { dni: "41258963", nombres: "Christian Omar", apellidos: "Herrera Díaz", genero: "Masculino", edad: 50, telefono: "993254147" },
+            { dni: "73625148", nombres: "Claudia Marcela", apellidos: "Vargas Machuca", genero: "Femenino", edad: 26, telefono: "915487236" },
+            { dni: "08965412", nombres: "Alejandro José", apellidos: "Méndez Paredes", genero: "Masculino", edad: 36, telefono: "972365148" }
+        ];
+
+        let asistencias = [];
+        let fechaNavegacion = new Date(); 
+        let html5QrScanner = null;
+        let escanerActivo = false;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            actualizarTablaTrabajadores();
+            actualizarCalendarioVisual();
+        });
+
+        // ========================================================
+        // RENDERIZADO E INTERFAZ GRÁFICA
+        // ========================================================
+        function actualizarTablaTrabajadores() {
+            const tbody = document.getElementById("cuerpoTablaTrabajadores");
+            tbody.innerHTML = "";
+            trabajadores.forEach(t => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-3 font-mono font-bold text-indigo-600">${t.dni}</td>
+                        <td class="p-3">
+                            <div class="font-semibold text-slate-800">${t.nombres}</div>
+                            <div class="text-xs text-slate-400">${t.apellidos}</div>
+                        </td>
+                        <td class="p-3 text-center">
+                            <span class="px-2 py-0.5 text-xs font-medium rounded-full ${t.genero === 'Femenino' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}">${t.genero}</span>
+                        </td>
+                        <td class="p-3 text-center">${t.edad}</td>
+                        <td class="p-3 font-mono text-slate-500">${t.telefono}</td>
+                        <td class="p-3 text-center space-x-3 text-sm">
+                            <button onclick="abrirModalFormularioTrabajador('${t.dni}')" class="text-indigo-600 hover:text-indigo-900 cursor-pointer" title="Editar"><i class="fa-solid fa-user-pen"></i></button>
+                            <button onclick="solicitarEliminarTrabajador('${t.dni}')" class="text-rose-600 hover:text-rose-900 cursor-pointer" title="Eliminar"><i class="fa-solid fa-trash-can"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function actualizarCalendarioVisual() {
+            const contenedor = document.getElementById("grillaCalendario");
+            const textoMesAno = document.getElementById("mesAnoTexto");
+            contenedor.innerHTML = "";
+
+            const anio = fechaNavegacion.getFullYear();
+            const mes = fechaNavegacion.getMonth();
+            const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            
+            textoMesAno.innerText = `${meses[mes]} ${anio}`;
+
+            const primerDiaIndex = new Date(anio, mes, 1).getDay();
+            const totalDiasMes = new Date(anio, mes + 1, 0).getDate();
+
+            for (let i = 0; i < primerDiaIndex; i++) {
+                contenedor.innerHTML += `<div></div>`;
+            }
+
+            for (let d = 1; d <= totalDiasMes; d++) {
+                const fechaFmt = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const registrosDelDia = asistencias.filter(a => a.fecha === fechaFmt).length;
+
+                let indicador = "";
+                if (registrosDelDia > 0) {
+                    indicador = `<span class="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 text-[9px] text-white rounded-full flex items-center justify-center font-bold shadow-sm">${registrosDelDia}</span>`;
+                }
+
+                contenedor.innerHTML += `
+                    <div onclick="abrirModalDetalleAsistenciaDelDia('${fechaFmt}')" class="relative bg-slate-50 border border-slate-200 rounded-lg p-1 text-left font-bold text-slate-700 hover:bg-indigo-50 cursor-pointer transition calendar-day">
+                        <span>${d}</span>
+                        ${indicador}
+                    </div>
+                `;
+            }
+        }
+
+        function navegarMes(dir) {
+            fechaNavegacion.setMonth(fechaNavegacion.getMonth() + dir);
+            actualizarCalendarioVisual();
+        }
+
+        // ========================================================
+        // VALIDACIÓN DE CÓDIGOS QR & CONTROL DE ASISTENCIA
+        // ========================================================
+        function registrarAsistenciaInterna(dniLeido, fechaLog, tipoLog, canalLog) {
+            const dniLimpio = dniLeido.trim();
+            const personal = trabajadores.find(x => x.dni === dniLimpio);
+
+            if (!personal) {
+                Swal.fire({
+                    icon: 'error',
+                    title: '¡Acceso Denegado!',
+                    text: `El DNI "${dniLimpio}" no coincide con ningún trabajador de la lista oficial.`,
+                    confirmButtonColor: '#e11d48'
+                });
+                return false;
+            }
+
+            const hoy = new Date();
+            const horaLog = hoy.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            asistencias.push({
+                id: Math.random().toString(36).substr(2, 9),
+                dni: personal.dni,
+                nombreCompleto: `${personal.nombres} ${personal.apellidos}`,
+                fecha: fechaLog,
+                hora: horaLog,
+                tipo: tipoLog,
+                canal: canalLog
+            });
+
+            actualizarCalendarioVisual();
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Asistencia Confirmada',
+                html: `<b>Trabajador:</b> ${personal.nombres} ${personal.apellidos}<br><b>Marcación:</b> ${tipoLog} (${horaLog})`,
+                confirmButtonColor: '#4f46e5'
+            });
+            return true;
+        }
+
+        function alternarCamaraMovil() {
+            if (!escanerActivo) {
+                encenderLectorQR();
+            } else {
+                apagarLectorQR();
+            }
+        }
+
+        function encenderLectorQR() {
+            if (!html5QrScanner) html5QrScanner = new Html5Qrcode("reader");
+            document.getElementById("placeholder-camara").classList.add("hidden");
+
+            const alDetectar = (decodedText) => {
+                html5QrScanner.pause();
+                const hoyFmt = new Date().toISOString().split('T')[0];
+                
+                registrarAsistenciaInterna(decodedText, hoyFmt, "Entrada", "Escáner QR Cámara");
+                
+                setTimeout(() => { if (escanerActivo && html5QrScanner) html5QrScanner.resume(); }, 2000);
+            };
+
+            html5QrScanner.start({ facingMode: "environment" }, { fps: 15, qrbox: { width: 220, height: 220 } }, alDetectar)
+            .then(() => {
+                escanerActivo = true;
+                actualizarBotonCamara(true);
+            })
+            .catch(() => {
+                document.getElementById("placeholder-camara").classList.remove("hidden");
+                Swal.fire('Error de Acceso', 'Asegúrate de contar con permisos de cámara y utilizar conexión HTTPS o Localhost.', 'error');
+            });
+        }
+
+        function apagarLectorQR() {
+            if (html5QrScanner && escanerActivo) {
+                html5QrScanner.stop().then(() => {
+                    escanerActivo = false;
+                    actualizarBotonCamara(false);
+                    document.getElementById("placeholder-camara").classList.remove("hidden");
+                });
+            }
+        }
+
+        function actualizarBotonCamara(activo) {
+            const btn = document.getElementById("btn-camara");
+            if (activo) {
+                btn.classList.replace("bg-indigo-600", "bg-rose-600");
+                btn.classList.replace("hover:bg-indigo-500", "hover:bg-rose-500");
+                btn.innerHTML = `<i class="fa-solid fa-stop"></i> Detener Lector`;
+            } else {
+                btn.classList.replace("bg-rose-600", "bg-indigo-600");
+                btn.classList.replace("hover:bg-rose-500", "hover:bg-indigo-500");
+                btn.innerHTML = `<i class="fa-solid fa-camera"></i> Activar Cámara Trasera`;
+            }
+        }
+
+        // ========================================================
+        // FORMULARIOS INTERACTIVOS MANTENIMIENTO PERSONAL (CRUD)
+        // ========================================================
+        async function abrirModalFormularioTrabajador(dniEdit = null) {
+            const esEdicion = dniEdit !== null;
+            let t = esEdicion ? trabajadores.find(x => x.dni === dniEdit) : { dni: '', nombres: '', apellidos: '', genero: 'Masculino', edad: '', telefono: '' };
+
+            const { value: formValues } = await Swal.fire({
+                title: esEdicion ? '<b>Editar Datos de Colaborador</b>' : '<b>Registrar Nuevo Colaborador</b>',
+                html: `
+                    <div class="text-left text-xs font-semibold text-slate-500 mb-1 ml-1">Número de DNI:</div>
+                    <input id="sw-dni" class="swal2-input !mt-0 !mb-3 text-sm" placeholder="8 dígitos" value="${t.dni}" ${esEdicion ? 'disabled style="background:#e2e8f0;"' : ''}>
+                    <div class="text-left text-xs font-semibold text-slate-500 mb-1 ml-1">Nombres:</div>
+                    <input id="sw-nom" class="swal2-input !mt-0 !mb-3 text-sm" placeholder="Nombres" value="${t.nombres}">
+                    <div class="text-left text-xs font-semibold text-slate-500 mb-1 ml-1">Apellidos:</div>
+                    <input id="sw-ape" class="swal2-input !mt-0 !mb-3 text-sm" placeholder="Apellidos" value="${t.apellidos}">
+                    <div class="text-left text-xs font-semibold text-slate-500 mb-1 ml-1">Género:</div>
+                    <select id="sw-gen" class="swal2-input !mt-0 !mb-3 text-sm">
+                        <option value="Masculino" ${t.genero === 'Masculino' ? 'selected' : ''}>Masculino</option>
+                        <option value="Femenino" ${t.genero === 'Femenino' ? 'selected' : ''}>Femenino</option>
+                    </select>
+                    <div class="text-left text-xs font-semibold text-slate-500 mb-1 ml-1">Edad:</div>
+                    <input id="sw-eda" type="number" class="swal2-input !mt-0 !mb-3 text-sm" value="${t.edad}">
+                    <div class="text-left text-xs font-semibold text-slate-500 mb-1 ml-1">Teléfono:</div>
+                    <input id="sw-tel" class="swal2-input !mt-0 text-sm" value="${t.telefono}">
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Guardar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#4f46e5',
+                preConfirm: () => {
+                    const data = {
+                        dni: document.getElementById('sw-dni').value.trim(),
+                        nombres: document.getElementById('sw-nom').value.trim(),
+                        apellidos: document.getElementById('sw-ape').value.trim(),
+                        genero: document.getElementById('sw-gen').value,
+                        edad: parseInt(document.getElementById('sw-eda').value),
+                        telefono: document.getElementById('sw-tel').value.trim()
+                    };
+                    if(!data.dni || !data.nombres || !data.apellidos || isNaN(data.edad) || !data.telefono) {
+                        Swal.showValidationMessage('Todos los campos son estrictamente obligatorios.');
+                        return false;
+                    }
+                    if(!esEdicion && trabajadores.some(x => x.dni === data.dni)) {
+                        Swal.showValidationMessage('Este documento de identidad ya se encuentra registrado.');
+                        return false;
+                    }
+                    return data;
+                }
+            });
+
+            if (formValues) {
+                if (esEdicion) {
+                    const index = trabajadores.findIndex(x => x.dni === dniEdit);
+                    trabajadores[index] = formValues;
+                } else {
+                    trabajadores.push(formValues);
+                }
+                actualizarTablaTrabajadores();
+                Swal.fire('¡Éxito!', 'Información de personal sincronizada.', 'success');
+            }
+        }
+
+        function solicitarEliminarTrabajador(dniBaja) {
+            Swal.fire({
+                title: '¿Eliminar registro?',
+                text: `Esta acción removerá al DNI ${dniBaja} del listado actual.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#e11d48',
+                confirmButtonText: 'Sí, remover',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    trabajadores = trabajadores.filter(x => x.dni !== dniBaja);
+                    actualizarTablaTrabajadores();
+                    Swal.fire('Removido', 'El registro ha sido depurado.', 'success');
+                }
+            });
+        }
+
+        // ========================================================
+        // FORMULARIOS INTERACTIVOS DE ASISTENCIAS (CALENDARIO)
+        // ========================================================
+        async function modalGestionAsistenciaAdministrativa() {
+            let opcionesTrabajadores = trabajadores.map(x => `<option value="${x.dni}">${x.apellidos}, ${x.nombres} (${x.dni})</option>`).join('');
+            
+            const { value: formAsis } = await Swal.fire({
+                title: '<b>Registro Manual de Asistencias</b>',
+                html: `
+                    <div class="text-left text-xs font-semibold text-slate-500 mb-1 ml-1">Seleccionar Personal:</div>
+                    <select id="am-dni" class="swal2-input !mt-0 !mb-3 text-sm">${opcionesTrabajadores}</select>
+                    <div class="text-left text-xs font-semibold text-slate-500 mb-1 ml-1">Fecha de Registro:</div>
+                    <input id="am-fecha" type="date" class="swal2-input !mt-0 !mb-3 text-sm" value="${new Date().toISOString().split('T')[0]}">
+                    <div class="text-left text-xs font-semibold text-slate-500 mb-1 ml-1">Tipo de Evento:</div>
+                    <select id="am-tipo" class="swal2-input !mt-0 text-sm">
+                        <option value="Entrada">Entrada</option>
+                        <option value="Salida">Salida</option>
+                    </select>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Asentar Entrada',
+                confirmButtonColor: '#10b981',
+                preConfirm: () => {
+                    return {
+                        dni: document.getElementById('am-dni').value,
+                        fecha: document.getElementById('am-fecha').value,
+                        tipo: document.getElementById('am-tipo').value
+                    }
+                }
+            });
+
+            if (formAsis) {
+                registrarAsistenciaInterna(formAsis.dni, formAsis.fecha, formAsis.tipo, "Manual (Admin)");
+            }
+        }
+
+        function abrirModalDetalleAsistenciaDelDia(fechaFiltro) {
+            const listado = asistencias.filter(x => x.fecha === fechaFiltro);
+            let htmlDetalle = `<div class="text-left text-xs text-slate-400 mb-3">Logs consolidados: <b>${fechaFiltro}</b></div>`;
+
+            if (listado.length === 0) {
+                htmlDetalle += `<p class="text-slate-400 italic py-4 text-center">No existen marcas registradas en esta fecha.</p>`;
+            } else {
+                htmlDetalle += `<div class="space-y-2 max-h-60 overflow-y-auto pr-1">`;
+                listado.forEach(a => {
+                    htmlDetalle += `
+                        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-left text-xs">
+                            <div>
+                                <div class="font-bold text-slate-800">${a.nombreCompleto}</div>
+                                <div class="text-slate-500 font-mono">DNI: ${a.dni} | Hora: ${a.hora}</div>
+                                <div class="text-[10px] text-indigo-500 font-semibold italic">${a.canal}</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 font-bold text-[10px] rounded ${a.tipo === 'Entrada' ? 'bg-emerald-100 text-emerald-800':'bg-amber-100 text-amber-800'}">${a.tipo}</span>
+                                <button onclick="Swal.close(); removerLogAsistencia('${a.id}', '${fechaFiltro}')" class="text-rose-500 hover:text-rose-700 text-base cursor-pointer"><i class="fa-solid fa-circle-xmark"></i></button>
+                            </div>
+                        </div>
+                    `;
+                });
+                htmlDetalle += `</div>`;
+            }
+
+            Swal.fire({
+                title: `<b>Control Diario de Asistencias</b>`,
+                html: htmlDetalle,
+                showConfirmButton: true,
+                confirmButtonText: 'Cerrar',
+                confirmButtonColor: '#64748b'
+            });
+        }
+
+        function removerLogAsistencia(idLog, fechaRebote) {
+            asistencias = asistencias.filter(x => x.id !== idLog);
+            actualizarCalendarioVisual();
+            setTimeout(() => { abrirModalDetalleAsistenciaDelDia(fechaRebote); }, 200);
+        }
+
+        // ========================================================
+        // RESPALDO DE SEGURIDAD EXPORTABLE (.JS)
+        // ========================================================
+        function exportarBackupJS() {
+            const contenidoScript = `/** * BACKUP INTEGRAL DE RECURSOS HUMANOS
+ * Exportado el: ${new Date().toLocaleString()}
+ */
+const DATA_TRABAJADORES = ${JSON.stringify(trabajadores, null, 4)};
+const DATA_ASISTENCIAS = ${JSON.stringify(asistencias, null, 4)};
+console.log("Carga de archivos de respaldo ejecutada correctamente.");`;
+
+            const blob = new Blob([contenidoScript], { type: 'text/javascript' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup_sistema_rrhh_${Date.now()}.js`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
